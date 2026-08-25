@@ -1,4 +1,4 @@
-local ReplicatedStorage = game.ReplicatedStorage
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CommF_ = game:GetService("ReplicatedStorage").Remotes.CommF_
 local seed = ReplicatedStorage.Modules.Net.seed:InvokeServer() * 2
 local v106 = tostring(game.Players.LocalPlayer.UserId):sub(2, 4) .. tostring(coroutine.running()):sub(11, 15)
