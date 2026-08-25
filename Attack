@@ -1,355 +1,160 @@
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
-local VirtualInputManager = game:GetService("VirtualInputManager")
-
-local LocalPlayer = Players.LocalPlayer
-local CommF_ = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
-
-local seedRemote = ReplicatedStorage:WaitForChild("Modules")
-	:WaitForChild("Net")
-	:WaitForChild("seed")
-
-local seed = seedRemote:InvokeServer() * 2
-
+local CommF_ = game:GetService("ReplicatedStorage").Remotes.CommF_
+local seed = ReplicatedStorage.Modules.Net.seed:InvokeServer() * 2
+local v106 = tostring(game.Players.LocalPlayer.UserId):sub(2, 4) .. tostring(coroutine.running()):sub(11, 15)
 local LastAttackTime = 0
+local LocalPlayer = game.Players.LocalPlayer
+local Character = LocalPlayer.Character
 local r = nil
-
-local v106 =
-	tostring(LocalPlayer.UserId):sub(2, 4)
-	.. tostring(coroutine.running()):sub(11, 15)
-
 local function IsOwn(name)
-	local Character = LocalPlayer.Character
-	local Backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
-
-	if Backpack then
-		local tool = Backpack:FindFirstChild(name)
-
-		if tool then
-			return tool
-		end
+	if LocalPlayer.Backpack:FindFirstChild(name) then
+		return LocalPlayer.Backpack:FindFirstChild(name)
 	end
-
-	if Character then
-		local tool = Character:FindFirstChild(name)
-
-		if tool and tool:IsA("Tool") then
-			return tool
-		end
-
-		for _, v in ipairs(Character:GetChildren()) do
-			if v:IsA("Tool") and v.Name == name then
-				return v
+	local k
+	for _,v in LocalPlayer.Character:GetChildren() do 
+		if v:IsA("Tool") then
+			if v.Name == name then
+				k = v
 			end
 		end
 	end
-
-	return nil
+	return k or LocalPlayer.Character:FindFirstChild(name)
 end
 
-local function GetEnemiesCanAttack()
-	local result = {}
 
-	local Character = LocalPlayer.Character
 
-	if not Character then
-		return result
-	end
-
-	local Root = Character:FindFirstChild("HumanoidRootPart")
-
-	if not Root or not Root:IsA("BasePart") then
-		return result
-	end
-
-	local EnemiesFolder = workspace:FindFirstChild("Enemies")
-
-	if not EnemiesFolder then
-		return result
-	end
-
-	local rootPosition = Root.Position
-
-	if typeof(rootPosition) ~= "Vector3" then
-		return result
-	end
-
-	for _, enemy in ipairs(EnemiesFolder:GetChildren()) do
-		if not enemy:IsA("Model") then
-			continue
-		end
-
-		local Hum = enemy:FindFirstChildOfClass("Humanoid")
-		local Head = enemy:FindFirstChild("Head")
-		local EnemyRoot = enemy:FindFirstChild("HumanoidRootPart")
-
-		if not Hum or not Head or not EnemyRoot then
-			continue
-		end
-
-		if Hum.Health <= 0 then
-			continue
-		end
-
-		if not EnemyRoot:IsA("BasePart") then
-			continue
-		end
-
-		if enemy:GetAttribute("IsBoat") then
-			continue
-		end
-
-		if not enemy.Parent or not EnemyRoot.Parent then
-			continue
-		end
-
-		local enemyPosition = EnemyRoot.Position
-
-		if typeof(enemyPosition) ~= "Vector3" then
-			continue
-		end
-
-		local distance
-
-		local ok = pcall(function()
-			distance = (rootPosition - enemyPosition).Magnitude
-		end)
-
-		if ok and typeof(distance) == "number" then
-			table.insert(result, {
-				Model = enemy,
-				Distance = distance
-			})
-		end
-	end
-
-	table.sort(result, function(a, b)
-		return a.Distance < b.Distance
-	end)
-
-	return result
-end
 
 task.spawn(function()
-	while task.wait(0.1) do
-		if r and r.Parent then
-			continue
-		end
-
-		local paths = {
-			ReplicatedStorage:FindFirstChild("Util"),
-			ReplicatedStorage:FindFirstChild("Remotes"),
-			ReplicatedStorage:FindFirstChild("Assets"),
-			ReplicatedStorage:FindFirstChild("Common"),
-			ReplicatedStorage:FindFirstChild("FX")
-		}
-
-		for _, folder in ipairs(paths) do
-			if folder then
-				for _, obj in ipairs(folder:GetChildren()) do
-					if obj:IsA("RemoteEvent") and obj:GetAttribute("Id") ~= nil then
-						r = obj
-						break
-					end
+	while task.wait() do
+		local paths = {ReplicatedStorage.Util,ReplicatedStorage.Remotes,ReplicatedStorage.Assets,ReplicatedStorage.Common,ReplicatedStorage.FX}
+		for _, v in paths do
+			for _, v1 in v:GetChildren() do
+				if v1:GetAttribute("Id") and v1:IsA("RemoteEvent") then
+					r = v1
+					break
 				end
-			end
-
-			if r then
-				break
 			end
 		end
 	end
 end)
+function NearestEnemiesCanAttack()
+    local t = {}
 
-local function TakeDamage(targets)
-	if type(targets) ~= "table" then
-		return
-	end
+    if not Character then
+        return t
+    end
 
-	local now = tick()
+    local MyRoot = Character:FindFirstChild("HumanoidRootPart")
+    if not MyRoot then
+        return t
+    end
 
-	if typeof(LastAttackTime) ~= "number" then
-		LastAttackTime = 0
-	end
+    for _, Enemy in ipairs(workspace.Enemies:GetChildren()) do
+        if Enemy:FindFirstChild("Humanoid").Health > 0 and not Enemy:GetAttribute("IsBoat") then
+            local EnemyRoot = Enemy:FindFirstChild("HumanoidRootPart")
 
-	if now - LastAttackTime < 0.1 then
-		return
-	end
+            if EnemyRoot then
+                local Dis = (EnemyRoot.Position - MyRoot.Position).Magnitude
 
-	local Character = LocalPlayer.Character
+                if Dis <= 350 then
+                    table.insert(t, {
+                        Model = Enemy,
+                        Distance = Dis
+                    })
+                end
+            end
+        end
+    end
 
-	if not Character then
-		return
-	end
+    table.sort(t, function(a, b)
+        return a.Distance < b.Distance
+    end)
 
-	if not r or not r.Parent then
-		return
-	end
-
-	local rId = r:GetAttribute("Id")
-
-	if typeof(rId) ~= "number" then
-		return
-	end
-
-	local mainMob = targets[1]
-	local secondMob = targets[2]
-
-	if not mainMob or not mainMob.Parent then
-		return
-	end
-
-	local mainHead = mainMob:FindFirstChild("Head")
-
-	if not mainHead then
-		return
-	end
-
-	local secondHead = nil
-
-	if secondMob and secondMob.Parent then
-		secondHead = secondMob:FindFirstChild("Head")
-	end
-
-	-- Buso
-	if not Character:FindFirstChild("HasBuso") then
-		pcall(function()
-			CommF_:InvokeServer("Buso")
-		end)
-	end
-
-	-- Encode
-	local h = "RE/RegisterHit"
-	local key = math.floor(workspace:GetServerTimeNow() / 10 % 10)
-
-	local encoded = ""
-
-	for i = 1, #h do
-		encoded = encoded .. string.char(
-			bit32.bxor(string.byte(h, i), key + 1)
-		)
-	end
-
-	-- Skill
-	local PlayerGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
-	local MainGui = PlayerGui and PlayerGui:FindFirstChild("Main")
-	local Skills = MainGui and MainGui:FindFirstChild("Skills")
-
-	if Skills then
-		local BlackLeg = Skills:FindFirstChild("Black Leg")
-		local DeathStep = Skills:FindFirstChild("Death Step")
-
-		local skill = BlackLeg or DeathStep
-
-		if skill then
-			local V = skill:FindFirstChild("V")
-			local toolName = skill.Name
-			local tool = IsOwn(toolName)
-
-			if V and tool then
-				local Level = tool:FindFirstChild("Level")
-
-				if Level and typeof(Level.Value) == "number" then
-					local requiredLevel = toolName == "Death Step" and 400 or 150
-
-					if Level.Value >= requiredLevel then
-						local Cooldown = V:FindFirstChild("Cooldown")
-
-						if Cooldown
-							and Cooldown:IsA("GuiObject")
-							and Cooldown.AbsoluteSize.X <= 0.1 then
-
-							VirtualInputManager:SendKeyEvent(true, "V", false, game)
-							VirtualInputManager:SendKeyEvent(false, "V", false, game)
-						end
-					end
-				end
-			end
-		end
-	end
-
-	local attackRemote = ReplicatedStorage
-		:FindFirstChild("Modules")
-		and ReplicatedStorage.Modules.Net:FindFirstChild("RE/RegisterAttack")
-
-	local hitRemote = ReplicatedStorage
-		:FindFirstChild("Modules")
-		and ReplicatedStorage.Modules.Net:FindFirstChild("RE/RegisterHit")
-
-	if not attackRemote or not hitRemote then
-		return
-	end
-
-	local encodedId = bit32.bxor(rId + 909090, seed)
-
-	attackRemote:FireServer(0)
-
-	-- Có mob thứ hai
-	if secondMob and secondHead then
-		local hits = {
-			{ mainMob, mainHead },
-			mainMob,
-			{ secondMob, secondHead },
-			secondMob
-		}
-
-		r:FireServer(
-			encoded,
-			encodedId,
-			mainHead,
-			hits,
-			nil,
-			v106
-		)
-
-		hitRemote:FireServer(
-			mainHead,
-			hits,
-			nil,
-			v106
-		)
-
-	-- Chỉ có một mob
-	else
-		local hits = {
-			mainMob,
-			mainHead
-		}
-
-		r:FireServer(
-			encoded,
-			encodedId,
-			mainHead,
-			hits,
-			v106
-		)
-
-		hitRemote:FireServer(
-			mainHead,
-			hits,
-			v106
-		)
-	end
-
-	LastAttackTime = now
+    return t
 end
 
+function TakeDamage()
+    if tick() - LastAttackTime < 0.2 or not r then
+        return
+    end
+
+    LastAttackTime = tick()
+
+	local h = "RE/RegisterHit"
+		local key = math.floor(workspace:GetServerTimeNow() / 10 % 10)
+		local encoded = ""
+		for i = 1, #h do
+			encoded = encoded .. string.char(bit32.bxor(string.byte(h, i), key + 1))
+		end
+
+    local Enemies = NearestEnemiesCanAttack()
+
+    local MainMob = Enemies[1] and Enemies[1].Model
+    local SecondMob = Enemies[2] and Enemies[2].Model
+
+    if not MainMob then
+        return
+    end
+
+    print("Main:", MainMob.Name)
+
+
+
+    if SecondMob then
+        print("Second:", SecondMob.Name)
+
+        -- 2 mục tiêu gần nhất
+        local Targets = {
+            MainMob,
+            SecondMob
+        }
+ game.ReplicatedStorage.Modules.Net["RE/RegisterAttack"]:FireServer(0)
+		if MainMob:FindFirstChild("Head") and SecondMob:FindFirstChild("Head") then
+ r:FireServer(encoded,bit32.bxor(r:GetAttribute("Id")+909090,seed),
+            MainMob:FindFirstChild("Head"),
+            {
+                { MainMob, MainMob:FindFirstChild("Head") }, 
+                MainMob,
+                { SecondMob, SecondMob:FindFirstChild("Head") }, 
+                SecondMob
+            },
+            nil,
+            v106
+        )
+		end
+       
+        ReplicatedStorage.Modules.Net["RE/RegisterHit"]:FireServer(
+            MainMob:FindFirstChild("Head"),
+            {
+                { MainMob, MainMob:FindFirstChild("Head") }, 
+                MainMob,
+                { SecondMob, SecondMob:FindFirstChild("Head") }, 
+                SecondMob
+            },
+            nil,
+            v106
+        )
+        -- Đặt logic Attack hợp lệ của bạn vào đây.
+        -- Targets[1] = con gần nhất
+        -- Targets[2] = con gần thứ hai
+
+    else
+        print("Chỉ có 1 mục tiêu:", MainMob.Name)
+ ReplicatedStorage.Modules.Net["RE/RegisterAttack"]:FireServer(0)
+        r:FireServer(encoded,bit32.bxor(r:GetAttribute("Id")+909090,seed),MainMob:FindFirstChild("Head"),{MainMob,MainMob:FindFirstChild("Head")},v106)
+        ReplicatedStorage.Modules.Net["RE/RegisterHit"]:FireServer(MainMob:FindFirstChild("Head"),{MainMob,MainMob:FindFirstChild("Head")},v106)
+        -- Xử lý MainMob ở đây.
+    end
+end
+
+
 task.spawn(function()
-	while task.wait(0.1) do
-		local enemies = GetEnemiesCanAttack()
+    while task.wait() do
+        local OK, Error = pcall(function()
+           TakeDamage()
+        end)
 
-		local targets = {}
-
-		if enemies[1] and enemies[1].Model then
-			table.insert(targets, enemies[1].Model)
-		end
-
-		if enemies[2] and enemies[2].Model then
-			table.insert(targets, enemies[2].Model)
-		end
-
-		if #targets > 0 then
-			TakeDamage(targets)
-		end
-	end
+        if not OK then
+            warn("TakeDamage:", Error)
+        end
+    end
 end)
